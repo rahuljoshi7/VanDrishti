@@ -1,0 +1,22 @@
+﻿venv/
+__pycache__/
+*.pyc
+
+# YOLO / experiment outputs
+runs/
+*.jpg
+*.jpeg
+*.png
+
+# Model weights
+*.pt
+*.onnx
+
+# DVC cache
+.dvc/cache/
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
