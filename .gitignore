@@ -34,3 +34,6 @@ data/processed/yolo/train/labels/
 data/processed/yolo/val/labels/
 *.cache
 
+
+data/processed/
+
