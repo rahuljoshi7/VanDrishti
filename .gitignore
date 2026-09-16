@@ -20,3 +20,17 @@ runs/
 .idea/
 .DS_Store
 Thumbs.db
+
+# Dataset / training cache
+*.cache
+data/raw/
+data/processed/yolo/*/images/
+
+
+# Generated YOLO dataset
+data/processed/yolo/day/labels/
+data/processed/yolo/night/labels/
+data/processed/yolo/train/labels/
+data/processed/yolo/val/labels/
+*.cache
+
