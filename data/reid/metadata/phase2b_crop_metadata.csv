@@ -1,0 +1,11 @@
+pair_id,dataset,species,label,difficulty,confidence,evidence,image_1,image_2,crop_1,crop_2,bbox_1,bbox_2
+B001,day,BlackBear,1,medium,high,Same continuous observation; same individual visible across frames,blackbear104.jpg,blackbear106.jpg,B001_img1.jpg,B001_img2.jpg,"(838, 328, 1085, 600)","(905, 373, 1232, 618)"
+B002,day,BlackBear,1,medium,high,Same continuous observation; same individual visible across frames,blackbear124.jpg,blackbear127.jpg,B002_img1.jpg,B002_img2.jpg,"(2, 213, 246, 688)","(1, 197, 213, 701)"
+B003,day,BlackBear,1,easy,high,Adjacent continuous observation; same individual,blackbear136.jpg,blackbear137.jpg,B003_img1.jpg,B003_img2.jpg,"(827, 318, 1279, 719)","(1066, 280, 1279, 719)"
+L001,day,LeopardCat,1,medium,high,Same continuous observation; same individual,leopardcat__1146.jpg,leopardcat__1152.jpg,L001_img1.jpg,L001_img2.jpg,"(737, 427, 1013, 517)","(43, 465, 301, 553)"
+L002,day,LeopardCat,1,medium,high,Same continuous observation; same individual,leopardcat__1154.jpg,leopardcat__1163.jpg,L002_img1.jpg,L002_img2.jpg,"(943, 400, 1124, 483)","(521, 424, 726, 540)"
+L003,day,LeopardCat,1,hard,high,Same event with substantial temporal gap; same individual appearance,leopardcat__1161.jpg,leopardcat__1171.jpg,L003_img1.jpg,L003_img2.jpg,"(644, 417, 851, 535)","(1, 452, 214, 578)"
+M001,day,MuskDeer,1,medium,high,Same dated event; same individual,muskdeer_410.jpg,muskdeer_429.jpg,M001_img1.jpg,M001_img2.jpg,"(889, 229, 1277, 674)","(5, 136, 741, 670)"
+M002,day,MuskDeer,1,medium,high,Same dated event; same individual,muskdeer_488.jpg,muskdeer_503.jpg,M002_img1.jpg,M002_img2.jpg,"(827, 409, 1268, 703)","(726, 426, 1164, 689)"
+M003,day,MuskDeer,1,hard,high,Same dated event; same individual,muskdeer_523.jpg,muskdeer_589.jpg,M003_img1.jpg,M003_img2.jpg,"(730, 225, 1275, 682)","(420, 128, 1167, 669)"
+S001,day,SikaDeer,1,easy,high,Adjacent continuous observation; same individual,sikadeer1075.jpg,sikadeer1076.jpg,S001_img1.jpg,S001_img2.jpg,"(708, 258, 1279, 628)","(970, 334, 1279, 630)"

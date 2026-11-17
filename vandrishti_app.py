@@ -9,10 +9,11 @@ import streamlit as st
 from PIL import Image
 from ultralytics import YOLO
 
-# ------------------------------------------------------------
-# VanDrishti SIH 2026 - GUI Prototype
-# Detection + Tracking + Multi-Camera Observation Dashboard
-# ------------------------------------------------------------
+
+# ============================================================
+# VanDrishti
+# AI-Based Multi-Camera Wildlife Monitoring
+# ============================================================
 
 st.set_page_config(
     page_title="VanDrishti | Wildlife Intelligence",
@@ -21,610 +22,1041 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
+
+# ============================================================
+# PROJECT PATHS
+# ============================================================
+
 PROJECT_ROOT = Path(__file__).resolve().parent
+
 MODEL_PATH = (
-    PROJECT_ROOT / "runs" / "yolo26n_baseline_v2" / "weights" / "best.pt"
+    PROJECT_ROOT
+    / "runs"
+    / "yolo26n_baseline_v2"
+    / "weights"
+    / "best.pt"
 )
 
-# ---------- Styling ----------
+
+# ============================================================
+# CONSTANTS
+# ============================================================
+
+TOTAL_IMAGES = 25657
+TRAIN_IMAGES = 20634
+VAL_IMAGES = 5023
+TOTAL_CLASSES = 17
+
+PRECISION = 93.5
+RECALL = 90.8
+MAP50 = 95.1
+MAP50_95 = 81.1
+
+REID_SAME_THRESHOLD = 0.88
+REID_DIFFERENT_THRESHOLD = 0.68
+QUALITY_THRESHOLD = 0.45
+
+
+CLASS_NAMES = [
+    "RaccoonDog",
+    "Hare",
+    "MuskDeer",
+    "LeopardCat",
+    "RedFox",
+    "WildBoar",
+    "SikaDeer",
+    "RoeDeer",
+    "AmurTiger",
+    "Weasel",
+    "Leopard",
+    "Sable",
+    "BlackBear",
+    "Badger",
+    "Y.T.Marten",
+    "Dog",
+    "Cow",
+]
+
+
+# ============================================================
+# CSS
+# ============================================================
+
 st.markdown(
     """
-    <style>
-    :root {
-        --vd-forest-900: #0d2818;
-        --vd-forest-700: #1b4332;
-        --vd-forest-500: #2d6a4f;
-        --vd-forest-300: #74c69d;
-        --vd-amber: #d99a3d;
-        --vd-amber-soft: rgba(217, 154, 61, 0.14);
-        --vd-red-soft: rgba(214, 69, 69, 0.14);
-        --vd-green-soft: rgba(64, 145, 108, 0.16);
-        --vd-border: rgba(128, 128, 128, 0.20);
-        --vd-radius: 14px;
-    }
+<style>
 
-    html, body, [class*="css"] {
-        font-family: "Source Sans Pro", "Segoe UI", sans-serif;
-    }
+.vd-header {
+    padding: 28px 32px;
+    border-radius: 16px;
+    background: linear-gradient(
+        120deg,
+        #0d2818 0%,
+        #1b4332 55%,
+        #2d6a4f 100%
+    );
+    margin-bottom: 24px;
+    box-shadow: 0 6px 24px rgba(13, 40, 24, 0.25);
+}
 
-    .vd-header {
-        padding: 26px 30px;
-        border-radius: var(--vd-radius);
-        background: linear-gradient(120deg, var(--vd-forest-900) 0%, var(--vd-forest-700) 55%, var(--vd-forest-500) 100%);
-        margin-bottom: 22px;
-        box-shadow: 0 6px 24px rgba(13, 40, 24, 0.25);
-    }
-    .vd-eyebrow {
-        color: var(--vd-forest-300);
-        font-size: 0.78rem;
-        font-weight: 700;
-        letter-spacing: 0.14em;
-        text-transform: uppercase;
-        margin-bottom: 6px;
-    }
-    .main-title {
-        font-size: 2.6rem;
-        font-weight: 800;
-        margin-bottom: 0;
-        color: #f4fbf7;
-        line-height: 1.1;
-    }
-    .subtitle {
-        font-size: 1.05rem;
-        color: rgba(244, 251, 247, 0.82);
-        margin-top: 6px;
-    }
+.vd-eyebrow {
+    color: #74c69d;
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+}
 
-    .status-card {
-        padding: 14px 16px;
-        border-radius: 12px;
-        border: 1px solid var(--vd-border);
-        margin-bottom: 10px;
-        background: rgba(128, 128, 128, 0.04);
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 10px;
-        transition: border-color .15s ease;
-    }
-    .status-card:hover { border-color: rgba(128,128,128,.45); }
-    .status-name { font-weight: 600; font-size: 0.94rem; }
+.vd-title {
+    color: #f4fbf7;
+    font-size: 42px;
+    font-weight: 800;
+    margin-top: 5px;
+}
 
-    .badge {
-        display: inline-block;
-        padding: 3px 11px;
-        border-radius: 999px;
-        font-size: 0.72rem;
-        font-weight: 700;
-        letter-spacing: 0.03em;
-        white-space: nowrap;
-    }
-    .badge-done   { background: var(--vd-green-soft); color: #2f9e5e; }
-    .badge-proto  { background: var(--vd-amber-soft); color: var(--vd-amber); }
-    .badge-next   { background: rgba(128,128,128,.14); color: #8a8a8a; }
+.vd-subtitle {
+    color: rgba(244, 251, 247, 0.82);
+    font-size: 17px;
+    margin-top: 4px;
+}
 
-    .small-note { font-size: .82rem; opacity: .72; }
+.vd-card {
+    padding: 18px 20px;
+    border-radius: 14px;
+    border: 1px solid rgba(128,128,128,.20);
+    background: rgba(128,128,128,.035);
+    margin-bottom: 14px;
+}
 
-    .pipeline {
-        padding: 14px 16px;
-        border-radius: 12px;
-        border: 1px solid var(--vd-border);
-        background: rgba(128, 128, 128, 0.04);
-        line-height: 2.0;
-        font-size: 0.9rem;
-    }
-    .pipeline-step-done { color: #2f9e5e; font-weight: 600; }
-    .pipeline-step-pending { opacity: 0.55; }
+.vd-small {
+    font-size: 13px;
+    opacity: .70;
+}
 
-    .vd-card {
-        padding: 18px 20px;
-        border-radius: var(--vd-radius);
-        border: 1px solid var(--vd-border);
-        background: rgba(128, 128, 128, 0.035);
-        margin-bottom: 14px;
-    }
-    .vd-card h3, .vd-card h4 { margin-top: 0; }
+.pipeline {
+    padding: 14px 16px;
+    border-radius: 12px;
+    border: 1px solid rgba(128,128,128,.20);
+    background: rgba(128,128,128,.04);
+    line-height: 1.9;
+}
 
-    .species-chip {
-        display: inline-flex;
-        align-items: center;
-        gap: 6px;
-        padding: 5px 12px;
-        border-radius: 999px;
-        background: var(--vd-green-soft);
-        color: #2f9e5e;
-        font-size: 0.85rem;
-        font-weight: 600;
-        margin: 3px 6px 3px 0;
-    }
+.pipeline-done {
+    color: #2f9e5e;
+    font-weight: 600;
+}
 
-    .decision-chip {
-        display: inline-block;
-        padding: 4px 13px;
-        border-radius: 999px;
-        font-size: 0.8rem;
-        font-weight: 700;
-        letter-spacing: .02em;
-    }
-    .decision-same   { background: var(--vd-green-soft); color: #2f9e5e; }
-    .decision-diff   { background: rgba(128,128,128,.14); color: #8a8a8a; }
-    .decision-uncertain { background: var(--vd-amber-soft); color: var(--vd-amber); }
-    .decision-insufficient { background: var(--vd-red-soft); color: #c0533f; }
+.pipeline-future {
+    color: #999999;
+}
 
-    .evidence-pass { color: #2f9e5e; font-weight: 700; }
-    .evidence-fail { color: #c0533f; font-weight: 700; }
+.species-chip {
+    display: inline-block;
+    padding: 5px 12px;
+    border-radius: 999px;
+    background: rgba(64,145,108,.16);
+    color: #2f9e5e;
+    margin: 3px 5px 3px 0;
+    font-size: 13px;
+    font-weight: 600;
+}
 
-    section[data-testid="stSidebar"] .stRadio > label {
-        font-weight: 600;
-    }
-
-    .vd-footer {
-        text-align: center;
-        opacity: 0.6;
-        font-size: 0.82rem;
-        padding-top: 6px;
-    }
-    </style>
-    """,
+</style>
+""",
     unsafe_allow_html=True,
 )
 
 
-def decision_css_class(decision):
-    mapping = {
-        "SAME": "decision-same",
-        "LIKELY SAME": "decision-same",
-        "NEW": "decision-diff",
-        "LIKELY DIFFERENT": "decision-diff",
-        "UNCERTAIN": "decision-uncertain",
-        "INSUFFICIENT EVIDENCE": "decision-insufficient",
-        "NO DETECTION": "decision-insufficient",
-    }
-    return mapping.get(decision, "decision-uncertain")
+# ============================================================
+# HEADER
+# ============================================================
+
+st.markdown(
+    """
+<div class="vd-header">
+<div class="vd-eyebrow">AI-Based Wildlife Intelligence Platform</div>
+<div class="vd-title">🦌 VanDrishti</div>
+<div class="vd-subtitle">Multi-Camera Wildlife Monitoring & Unique Animal Identification</div>
+</div>
+""",
+    unsafe_allow_html=True,
+)
 
 
-# ---------- Model / device ----------
+# ============================================================
+# DEVICE
+# ============================================================
+
 def get_device():
+
     try:
         import torch
-        if torch.cuda.is_available() and torch.cuda.device_count() > 0:
+
+        if torch.cuda.is_available():
+
             return 0, "NVIDIA GPU"
+
     except Exception:
         pass
+
     return "cpu", "CPU"
 
 
+# ============================================================
+# MODEL
+# ============================================================
+
 @st.cache_resource
 def load_model():
+
     if not MODEL_PATH.exists():
-        raise FileNotFoundError(f"Model not found: {MODEL_PATH}")
-    return YOLO(str(MODEL_PATH))
+
+        raise FileNotFoundError(
+            f"YOLO model not found:\n{MODEL_PATH}"
+        )
+
+    return YOLO(
+        str(MODEL_PATH)
+    )
 
 
-def class_name(model, idx):
+def get_class_name(
+    model,
+    class_id
+):
+
     names = model.names
-    return names.get(int(idx), str(idx)) if isinstance(names, dict) else names[int(idx)]
+
+    if isinstance(names, dict):
+
+        return names.get(
+            int(class_id),
+            str(class_id)
+        )
+
+    return names[int(class_id)]
 
 
-# ---------- Detection ----------
-def run_image(model, image):
+# ============================================================
+# NLM PREPROCESSING
+# ============================================================
+
+def apply_nlm(
+    image_rgb
+):
+
+    image_bgr = cv2.cvtColor(
+        image_rgb,
+        cv2.COLOR_RGB2BGR
+    )
+
+    denoised_bgr = cv2.fastNlMeansDenoisingColored(
+        image_bgr,
+        None,
+        h=6,
+        hColor=6,
+        templateWindowSize=7,
+        searchWindowSize=21,
+    )
+
+    return cv2.cvtColor(
+        denoised_bgr,
+        cv2.COLOR_BGR2RGB
+    )
+
+
+# ============================================================
+# IMAGE DETECTION
+# ============================================================
+
+def run_detection(
+    model,
+    image_rgb,
+    use_nlm=True
+):
+
+    if use_nlm:
+
+        processed_image = apply_nlm(
+            image_rgb
+        )
+
+    else:
+
+        processed_image = image_rgb
+
     device, _ = get_device()
+
     result = model.predict(
-        source=image,
+        source=processed_image,
         device=device,
         conf=st.session_state.conf,
         verbose=False,
     )[0]
 
-    annotated = cv2.cvtColor(result.plot(), cv2.COLOR_BGR2RGB)
+    annotated = cv2.cvtColor(
+        result.plot(),
+        cv2.COLOR_BGR2RGB
+    )
 
     detections = []
+
     if result.boxes is not None:
+
         for box in result.boxes:
-            cls = int(box.cls.item())
-            conf = float(box.conf.item())
-            xyxy = [int(x) for x in box.xyxy[0].tolist()]
+
+            class_id = int(
+                box.cls.item()
+            )
+
+            confidence = float(
+                box.conf.item()
+            )
+
+            bbox = [
+                int(x)
+                for x in box.xyxy[0].tolist()
+            ]
+
             detections.append(
                 {
-                    "class": class_name(model, cls),
-                    "confidence": conf,
-                    "bbox": xyxy,
+                    "class": get_class_name(
+                        model,
+                        class_id
+                    ),
+                    "confidence": confidence,
+                    "bbox": bbox,
                 }
             )
-    return annotated, detections
+
+    return (
+        annotated,
+        processed_image,
+        detections
+    )
 
 
-# ---------- Evidence-quality prototype ----------
+# ============================================================
+# CROP
+# ============================================================
 
-def appearance_embedding(crop_rgb):
+def crop_from_bbox(
+    image_rgb,
+    bbox
+):
+
+    x1, y1, x2, y2 = bbox
+
+    height, width = image_rgb.shape[:2]
+
+    x1 = max(0, x1)
+    y1 = max(0, y1)
+    x2 = min(width, x2)
+    y2 = min(height, y2)
+
+    if x2 <= x1 or y2 <= y1:
+
+        return np.empty(
+            (0, 0, 3),
+            dtype=np.uint8
+        )
+
+    return image_rgb[
+        y1:y2,
+        x1:x2
+    ]
+
+
+# ============================================================
+# APPEARANCE EMBEDDING
+# ============================================================
+
+def appearance_embedding(
+    crop_rgb
+):
+
     """
-    Transparent baseline identity descriptor.
+    Handcrafted baseline appearance descriptor.
 
-    It is intentionally NOT presented as a trained Re-ID neural network.
-    It combines:
-      - HSV color histograms
-      - grayscale intensity histogram
-      - edge/texture histogram
-      - coarse spatial color histograms
+    Components:
+    - HSV histograms
+    - grayscale histogram
+    - edge histogram
+    - spatial HSV histograms
 
-    The descriptor is normalized and compared with cosine similarity.
-    This gives us a reproducible image-to-image identity baseline while
-    the learned part-aware Re-ID model is being developed.
+    This is a baseline descriptor, not a trained
+    deep Re-ID network.
     """
-    crop = np.asarray(crop_rgb)
-    if crop.size == 0:
-        return np.zeros(1, dtype=np.float32)
 
-    crop = cv2.resize(crop, (256, 128))
-    hsv = cv2.cvtColor(crop, cv2.COLOR_RGB2HSV)
-    gray = cv2.cvtColor(crop, cv2.COLOR_RGB2GRAY)
+    if crop_rgb is None:
+        return np.zeros(
+            1,
+            dtype=np.float32
+        )
+
+    if crop_rgb.size == 0:
+        return np.zeros(
+            1,
+            dtype=np.float32
+        )
+
+    crop = cv2.resize(
+        crop_rgb,
+        (256, 128)
+    )
+
+    hsv = cv2.cvtColor(
+        crop,
+        cv2.COLOR_RGB2HSV
+    )
+
+    gray = cv2.cvtColor(
+        crop,
+        cv2.COLOR_RGB2GRAY
+    )
 
     features = []
 
-    # Global HSV histograms
-    for channel, bins, rng in [
+    # --------------------------------------------------------
+    # Global HSV
+    # --------------------------------------------------------
+
+    for channel, bins, value_range in [
         (0, 24, [0, 180]),
         (1, 16, [0, 256]),
         (2, 16, [0, 256]),
     ]:
-        hist = cv2.calcHist([hsv], [channel], None, [bins], rng).flatten()
-        hist = hist / (hist.sum() + 1e-8)
-        features.extend(hist.tolist())
 
-    # Grayscale appearance
-    gh = cv2.calcHist([gray], [0], None, [32], [0, 256]).flatten()
-    gh = gh / (gh.sum() + 1e-8)
-    features.extend(gh.tolist())
+        hist = cv2.calcHist(
+            [hsv],
+            [channel],
+            None,
+            [bins],
+            value_range
+        ).flatten()
 
-    # Edge/texture distribution
-    edges = cv2.Canny(gray, 50, 150)
-    eh = cv2.calcHist([edges], [0], None, [16], [0, 256]).flatten()
-    eh = eh / (eh.sum() + 1e-8)
-    features.extend(eh.tolist())
+        hist = hist / (
+            hist.sum() + 1e-8
+        )
 
-    # Coarse spatial appearance
+        features.extend(
+            hist.tolist()
+        )
+
+    # --------------------------------------------------------
+    # Grayscale
+    # --------------------------------------------------------
+
+    gray_hist = cv2.calcHist(
+        [gray],
+        [0],
+        None,
+        [32],
+        [0, 256]
+    ).flatten()
+
+    gray_hist = gray_hist / (
+        gray_hist.sum() + 1e-8
+    )
+
+    features.extend(
+        gray_hist.tolist()
+    )
+
+    # --------------------------------------------------------
+    # Edge histogram
+    # --------------------------------------------------------
+
+    edges = cv2.Canny(
+        gray,
+        50,
+        150
+    )
+
+    edge_hist = cv2.calcHist(
+        [edges],
+        [0],
+        None,
+        [16],
+        [0, 256]
+    ).flatten()
+
+    edge_hist = edge_hist / (
+        edge_hist.sum() + 1e-8
+    )
+
+    features.extend(
+        edge_hist.tolist()
+    )
+
+    # --------------------------------------------------------
+    # Spatial HSV
+    # --------------------------------------------------------
+
     for y in range(2):
+
         for x in range(4):
+
             cell = hsv[
-                y * hsv.shape[0] // 2:(y + 1) * hsv.shape[0] // 2,
-                x * hsv.shape[1] // 4:(x + 1) * hsv.shape[1] // 4,
+                y * hsv.shape[0] // 2:
+                (y + 1) * hsv.shape[0] // 2,
+
+                x * hsv.shape[1] // 4:
+                (x + 1) * hsv.shape[1] // 4
             ]
-            for channel, bins, rng in [
+
+            for channel, bins, value_range in [
                 (0, 12, [0, 180]),
                 (1, 8, [0, 256]),
                 (2, 8, [0, 256]),
             ]:
-                hist = cv2.calcHist([cell], [channel], None, [bins], rng).flatten()
-                hist = hist / (hist.sum() + 1e-8)
-                features.extend(hist.tolist())
 
-    vec = np.asarray(features, dtype=np.float32)
-    vec /= (np.linalg.norm(vec) + 1e-8)
-    return vec
+                hist = cv2.calcHist(
+                    [cell],
+                    [channel],
+                    None,
+                    [bins],
+                    value_range
+                ).flatten()
+
+                hist = hist / (
+                    hist.sum() + 1e-8
+                )
+
+                features.extend(
+                    hist.tolist()
+                )
+
+    vector = np.asarray(
+        features,
+        dtype=np.float32
+    )
+
+    vector /= (
+        np.linalg.norm(vector) + 1e-8
+    )
+
+    return vector
 
 
-def cosine_similarity(a, b):
-    denom = (np.linalg.norm(a) * np.linalg.norm(b)) + 1e-8
-    return float(np.dot(a, b) / denom)
+# ============================================================
+# COSINE SIMILARITY
+# ============================================================
+
+def cosine_similarity(
+    vector_a,
+    vector_b
+):
+
+    denominator = (
+        np.linalg.norm(vector_a)
+        * np.linalg.norm(vector_b)
+    ) + 1e-8
+
+    return float(
+        np.dot(
+            vector_a,
+            vector_b
+        ) / denominator
+    )
 
 
-def crop_from_detection(image_rgb, detection):
-    x1, y1, x2, y2 = detection["bbox"]
-    h, w = image_rgb.shape[:2]
-    x1, y1 = max(0, x1), max(0, y1)
-    x2, y2 = min(w, x2), min(h, y2)
-    return image_rgb[y1:y2, x1:x2]
+# ============================================================
+# ORB LOCAL SIMILARITY
+# ============================================================
+
+def local_pattern_similarity(
+    crop_a,
+    crop_b
+):
+
+    if (
+        crop_a is None
+        or crop_b is None
+        or crop_a.size == 0
+        or crop_b.size == 0
+    ):
+
+        return 0.0
+
+    image_a = cv2.cvtColor(
+        cv2.resize(
+            crop_a,
+            (320, 160)
+        ),
+        cv2.COLOR_RGB2GRAY
+    )
+
+    image_b = cv2.cvtColor(
+        cv2.resize(
+            crop_b,
+            (320, 160)
+        ),
+        cv2.COLOR_RGB2GRAY
+    )
+
+    orb = cv2.ORB_create(
+        nfeatures=600
+    )
+
+    keypoints_a, descriptors_a = (
+        orb.detectAndCompute(
+            image_a,
+            None
+        )
+    )
+
+    keypoints_b, descriptors_b = (
+        orb.detectAndCompute(
+            image_b,
+            None
+        )
+    )
+
+    if (
+        descriptors_a is None
+        or descriptors_b is None
+        or len(keypoints_a) < 8
+        or len(keypoints_b) < 8
+    ):
+
+        return 0.0
+
+    matcher = cv2.BFMatcher(
+        cv2.NORM_HAMMING
+    )
+
+    matches = matcher.knnMatch(
+        descriptors_a,
+        descriptors_b,
+        k=2
+    )
+
+    good_matches = []
+
+    for pair in matches:
+
+        if len(pair) != 2:
+            continue
+
+        first, second = pair
+
+        if first.distance < (
+            0.75 * second.distance
+        ):
+
+            good_matches.append(
+                first
+            )
+
+    denominator = (
+        min(
+            len(keypoints_a),
+            len(keypoints_b)
+        ) * 0.12
+    )
+
+    score = min(
+        1.0,
+        len(good_matches)
+        / max(1, denominator)
+    )
+
+    return float(score)
 
 
-def reid_decision(similarity, quality_a, quality_b, species_a=None, species_b=None):
-    """
-    Conservative prototype decision.
+# ============================================================
+# COMBINED RE-ID SIMILARITY
+# ============================================================
 
-    Species mismatch is a hard constraint: two observations belonging to
-    different detected species must never be labelled as the same animal.
-    """
-    if species_a is not None and species_b is not None and species_a != species_b:
+def combined_identity_similarity(
+    crop_a,
+    crop_b
+):
+
+    embedding_a = appearance_embedding(
+        crop_a
+    )
+
+    embedding_b = appearance_embedding(
+        crop_b
+    )
+
+    global_score = cosine_similarity(
+        embedding_a,
+        embedding_b
+    )
+
+    local_score = local_pattern_similarity(
+        crop_a,
+        crop_b
+    )
+
+    combined_score = (
+        0.35 * global_score
+        + 0.65 * local_score
+    )
+
+    return (
+        float(combined_score),
+        float(global_score),
+        float(local_score)
+    )
+
+
+# ============================================================
+# IMAGE QUALITY
+# ============================================================
+
+def crop_quality(
+    image_rgb,
+    bbox
+):
+
+    height, width = image_rgb.shape[:2]
+
+    x1, y1, x2, y2 = bbox
+
+    x1 = max(0, x1)
+    y1 = max(0, y1)
+    x2 = min(width, x2)
+    y2 = min(height, y2)
+
+    crop = image_rgb[
+        y1:y2,
+        x1:x2
+    ]
+
+    if crop.size == 0:
+
+        return {
+            "score": 0.0,
+            "label": "INSUFFICIENT EVIDENCE",
+            "area_score": 0.0,
+            "sharpness_score": 0.0,
+        }
+
+    area_ratio = (
+        (x2 - x1)
+        * (y2 - y1)
+    ) / max(
+        1,
+        width * height
+    )
+
+    gray = cv2.cvtColor(
+        crop,
+        cv2.COLOR_RGB2GRAY
+    )
+
+    sharpness = float(
+        cv2.Laplacian(
+            gray,
+            cv2.CV_64F
+        ).var()
+    )
+
+    area_score = min(
+        area_ratio / 0.12,
+        1.0
+    )
+
+    sharpness_score = min(
+        sharpness / 180.0,
+        1.0
+    )
+
+    score = (
+        0.55 * area_score
+        + 0.45 * sharpness_score
+    )
+
+    label = (
+        "SUFFICIENT EVIDENCE"
+        if score >= QUALITY_THRESHOLD
+        else "INSUFFICIENT EVIDENCE"
+    )
+
+    return {
+        "score": score,
+        "label": label,
+        "area_score": area_score,
+        "sharpness_score": sharpness_score,
+    }
+
+
+# ============================================================
+# RE-ID DECISION
+# ============================================================
+
+def reid_decision(
+    similarity,
+    quality_a,
+    quality_b,
+    species_a=None,
+    species_b=None
+):
+
+    # Species mismatch = cannot be same animal
+    if (
+        species_a is not None
+        and species_b is not None
+        and species_a != species_b
+    ):
+
         return "LIKELY DIFFERENT"
 
-    min_quality = min(quality_a["score"], quality_b["score"])
+    minimum_quality = min(
+        quality_a["score"],
+        quality_b["score"]
+    )
 
-    if min_quality < 0.30:
+    if minimum_quality < 0.30:
+
         return "INSUFFICIENT EVIDENCE"
-    if similarity >= 0.88:
+
+    if similarity >= REID_SAME_THRESHOLD:
+
         return "LIKELY SAME"
-    if similarity <= 0.68:
+
+    if similarity <= REID_DIFFERENT_THRESHOLD:
+
         return "LIKELY DIFFERENT"
+
     return "UNCERTAIN"
 
 
-def crop_quality(image_rgb, bbox):
-    """Simple quality gate: crop size + blur estimate.
-    This is NOT animal Re-ID. It only indicates whether an observation
-    contains enough visual evidence for a later identity module.
-    """
-    h, w = image_rgb.shape[:2]
-    x1, y1, x2, y2 = bbox
-    x1, y1 = max(0, x1), max(0, y1)
-    x2, y2 = min(w, x2), min(h, y2)
+# ============================================================
+# VIDEO TRACKING
+# ============================================================
 
-    crop = image_rgb[y1:y2, x1:x2]
-    if crop.size == 0:
-        return {"score": 0.0, "label": "INSUFFICIENT EVIDENCE"}
+def process_video(
+    model,
+    video_bytes,
+    use_nlm=False
+):
 
-    area_ratio = ((x2 - x1) * (y2 - y1)) / max(1, w * h)
-    gray = cv2.cvtColor(crop, cv2.COLOR_RGB2GRAY)
-    sharpness = float(cv2.Laplacian(gray, cv2.CV_64F).var())
+    input_file = tempfile.NamedTemporaryFile(
+        delete=False,
+        suffix=".mp4"
+    )
 
-    # Conservative demo-only quality score.
-    area_score = min(area_ratio / 0.12, 1.0)
-    sharp_score = min(sharpness / 180.0, 1.0)
-    score = 0.55 * area_score + 0.45 * sharp_score
+    input_file.write(
+        video_bytes
+    )
 
-    label = "SUFFICIENT EVIDENCE" if score >= 0.45 else "INSUFFICIENT EVIDENCE"
-    return {"score": score, "label": label}
+    input_file.close()
 
+    cap = cv2.VideoCapture(
+        input_file.name
+    )
 
-# ---------- Video tracking ----------
-def process_video(model, video_bytes):
-    temp_in = tempfile.NamedTemporaryFile(delete=False, suffix=".mp4")
-    temp_in.write(video_bytes)
-    temp_in.close()
-
-    cap = cv2.VideoCapture(temp_in.name)
     if not cap.isOpened():
-        os.unlink(temp_in.name)
-        raise RuntimeError("Could not open uploaded video.")
 
-    fps = cap.get(cv2.CAP_PROP_FPS) or 20
-    width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-    height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+        os.unlink(
+            input_file.name
+        )
 
-    temp_out = tempfile.NamedTemporaryFile(delete=False, suffix=".mp4")
-    temp_out.close()
+        raise RuntimeError(
+            "Could not open uploaded video."
+        )
+
+    fps = (
+        cap.get(
+            cv2.CAP_PROP_FPS
+        )
+        or 20
+    )
+
+    width = int(
+        cap.get(
+            cv2.CAP_PROP_FRAME_WIDTH
+        )
+    )
+
+    height = int(
+        cap.get(
+            cv2.CAP_PROP_FRAME_HEIGHT
+        )
+    )
+
+    output_file = tempfile.NamedTemporaryFile(
+        delete=False,
+        suffix=".mp4"
+    )
+
+    output_file.close()
 
     writer = cv2.VideoWriter(
-        temp_out.name,
-        cv2.VideoWriter_fourcc(*"mp4v"),
+        output_file.name,
+        cv2.VideoWriter_fourcc(
+            *"mp4v"
+        ),
         fps,
-        (width, height),
+        (width, height)
     )
 
     seen_tracks = {}
+
     frame_count = 0
+
     device, _ = get_device()
 
     try:
+
         while True:
-            ok, frame = cap.read()
-            if not ok:
+
+            success, frame = cap.read()
+
+            if not success:
                 break
 
+            processed_frame = frame
+
+            if use_nlm:
+
+                frame_rgb = cv2.cvtColor(
+                    frame,
+                    cv2.COLOR_BGR2RGB
+                )
+
+                frame_rgb = apply_nlm(
+                    frame_rgb
+                )
+
+                processed_frame = cv2.cvtColor(
+                    frame_rgb,
+                    cv2.COLOR_RGB2BGR
+                )
+
             results = model.track(
-                source=frame,
+                source=processed_frame,
                 persist=True,
                 tracker="bytetrack.yaml",
                 device=device,
                 conf=st.session_state.conf,
                 verbose=False,
             )
+
             result = results[0]
 
             if result.boxes is not None:
-                ids = result.boxes.id
-                for i, box in enumerate(result.boxes):
-                    cls = int(box.cls[i].item())
-                    track_id = (
-                        int(ids[i].item())
-                        if ids is not None
-                        else -1
-                    )
-                    key = (
-                        track_id
-                        if track_id >= 0
-                        else f"frame_{frame_count}_{i}"
-                    )
-                    seen_tracks[key] = class_name(model, cls)
 
-            writer.write(result.plot())
+                ids = result.boxes.id
+
+                for index, box in enumerate(
+                    result.boxes
+                ):
+
+                    class_id = int(
+                        box.cls.item()
+                    )
+
+                    if ids is not None:
+
+                        track_id = int(
+                            ids[index].item()
+                        )
+
+                    else:
+
+                        track_id = -1
+
+                    if track_id >= 0:
+
+                        key = track_id
+
+                    else:
+
+                        key = (
+                            f"frame_"
+                            f"{frame_count}_"
+                            f"{index}"
+                        )
+
+                    seen_tracks[key] = (
+                        get_class_name(
+                            model,
+                            class_id
+                        )
+                    )
+
+            writer.write(
+                result.plot()
+            )
+
             frame_count += 1
 
     finally:
+
         cap.release()
         writer.release()
-        os.unlink(temp_in.name)
 
-    return temp_out.name, frame_count, seen_tracks
+        if os.path.exists(
+            input_file.name
+        ):
 
-
-
-
-def local_pattern_similarity(crop_a, crop_b):
-    """
-    Local pattern baseline using ORB keypoints and descriptor matching.
-
-    This is deliberately a baseline experiment, not a learned Re-ID model.
-    Local matches help distinguish visually similar individuals of the same
-    species because they depend on localized texture/pattern structure.
-    """
-    if crop_a is None or crop_b is None:
-        return 0.0
-
-    a = cv2.cvtColor(cv2.resize(crop_a, (320, 160)), cv2.COLOR_RGB2GRAY)
-    b = cv2.cvtColor(cv2.resize(crop_b, (320, 160)), cv2.COLOR_RGB2GRAY)
-
-    orb = cv2.ORB_create(nfeatures=600)
-    kp_a, des_a = orb.detectAndCompute(a, None)
-    kp_b, des_b = orb.detectAndCompute(b, None)
-
-    if des_a is None or des_b is None or len(kp_a) < 8 or len(kp_b) < 8:
-        return 0.0
-
-    matcher = cv2.BFMatcher(cv2.NORM_HAMMING)
-    raw = matcher.knnMatch(des_a, des_b, k=2)
-
-    good = []
-    for pair in raw:
-        if len(pair) != 2:
-            continue
-        m, n = pair
-        if m.distance < 0.75 * n.distance:
-            good.append(m)
-
-    # Normalize by the smaller keypoint set. Cap at 1.
-    score = min(1.0, len(good) / max(1, min(len(kp_a), len(kp_b)) * 0.12))
-    return float(score)
-
-
-def combined_identity_similarity(crop_a, crop_b):
-    """
-    Combine global appearance and localized pattern evidence.
-
-    The local term receives higher weight so that two same-species animals
-    with similar global color/brightness are less likely to be merged.
-    """
-    global_a = appearance_embedding(crop_a)
-    global_b = appearance_embedding(crop_b)
-    global_score = cosine_similarity(global_a, global_b)
-    local_score = local_pattern_similarity(crop_a, crop_b)
-
-    combined = 0.35 * global_score + 0.65 * local_score
-    return float(combined), float(global_score), float(local_score)
-
-
-
-# ---------- Persistent identity registry (prototype) ----------
-def assign_registry_id(registry, species, embedding, quality_score, crop_rgb=None):
-    """
-    Conservative in-session identity registry.
-
-    Matching uses both global appearance and local pattern evidence.
-    A high global score alone is never sufficient to merge two animals.
-    """
-    if quality_score < 0.30:
-        return None, "INSUFFICIENT EVIDENCE", None
-
-    candidates = []
-
-    for animal_id, record in registry.items():
-        if record["species"] != species:
-            continue
-
-        if crop_rgb is not None and record.get("crop") is not None:
-            combined, global_score, local_score = combined_identity_similarity(
-                record["crop"], crop_rgb
+            os.unlink(
+                input_file.name
             )
-        else:
-            global_score = cosine_similarity(embedding, record["embedding"])
-            local_score = 0.0
-            combined = 0.35 * global_score
 
-        candidates.append(
-            (combined, animal_id, global_score, local_score)
-        )
-
-    if not candidates:
-        prefix = species[:3].upper()
-        number = 1
-        while f"{prefix}{number:03d}" in registry:
-            number += 1
-        new_id = f"{prefix}{number:03d}"
-
-        registry[new_id] = {
-            "species": species,
-            "embedding": embedding,
-            "crop": crop_rgb,
-            "observations": 1,
-            "quality": quality_score,
-            "best_similarity": None,
-        }
-        return new_id, "NEW", None
-
-    best_combined, best_id, best_global, best_local = max(
-        candidates, key=lambda x: x[0]
+    return (
+        output_file.name,
+        frame_count,
+        seen_tracks
     )
 
-    # Same identity requires BOTH strong combined evidence and meaningful
-    # local-pattern support. This prevents global appearance from dominating.
-    if best_combined >= 0.72 and best_local >= 0.55:
-        record = registry[best_id]
-        record["embedding"] = (
-            record["embedding"] * record["observations"] + embedding
-        ) / (record["observations"] + 1)
-        record["embedding"] /= np.linalg.norm(record["embedding"]) + 1e-8
-        record["crop"] = crop_rgb
-        record["observations"] += 1
-        record["quality"] = max(record["quality"], quality_score)
-        record["best_similarity"] = max(
-            best_combined,
-            record["best_similarity"] or 0.0,
-        )
-        return best_id, "SAME", best_combined
 
-    # A high global appearance score with weak local evidence is ambiguous,
-    # not a reason to merge.
-    if best_combined >= 0.55:
-        return None, "UNCERTAIN", best_combined
-
-    # Strongly different visual evidence -> create a new identity.
-    prefix = species[:3].upper()
-    number = 1
-    while f"{prefix}{number:03d}" in registry:
-        number += 1
-    new_id = f"{prefix}{number:03d}"
-
-    registry[new_id] = {
-        "species": species,
-        "embedding": embedding,
-        "crop": crop_rgb,
-        "observations": 1,
-        "quality": quality_score,
-        "best_similarity": None,
-    }
-    return new_id, "NEW", best_combined
-
-
-
-def registry_summary(registry):
-    counts = Counter(record["species"] for record in registry.values())
-    return counts
-
-
-
-# ---------- Header ----------
-st.markdown(
-    """
-    <div class="vd-header">
-        <div class="vd-eyebrow">SIH 2026 · Wildlife Intelligence Prototype</div>
-        <div class="main-title">🦌 VanDrishti</div>
-        <div class="subtitle">
-            AI-Based Multi-Camera Wildlife Monitoring &amp; Unique Animal Counting
-        </div>
-    </div>
-    """,
-    unsafe_allow_html=True,
-)
+# ============================================================
+# MODEL LOAD
+# ============================================================
 
 if not MODEL_PATH.exists():
-    st.error("Trained model not found:")
-    st.code(str(MODEL_PATH))
+
+    st.error(
+        "Trained YOLO26n model was not found."
+    )
+
+    st.code(
+        str(MODEL_PATH)
+    )
+
     st.stop()
 
+
 try:
+
     model = load_model()
-except Exception as e:
-    st.error(f"Could not load trained model: {e}")
+
+except Exception as error:
+
+    st.error(
+        f"Unable to load model:\n{error}"
+    )
+
     st.stop()
+
 
 device, device_label = get_device()
 
 
-if "identity_registry" not in st.session_state:
-    st.session_state.identity_registry = {}
+# ============================================================
+# SIDEBAR
+# ============================================================
 
-# ---------- Sidebar ----------
-st.sidebar.markdown("### ⚙️ Controls")
+st.sidebar.title(
+    "🦌 VanDrishti"
+)
+
+st.sidebar.caption(
+    "Wildlife Intelligence Platform"
+)
+
+st.sidebar.divider()
+
+
 mode = st.sidebar.radio(
-    "Analysis Mode",
+    "Navigation",
     [
         "Dashboard",
         "Single Image",
@@ -633,677 +1065,1360 @@ mode = st.sidebar.radio(
         "Identity Evidence",
         "Re-ID Comparison",
         "Unique Count Demo",
-    ],
-    label_visibility="collapsed",
+    ]
 )
 
-conf = st.sidebar.slider(
+
+# ============================================================
+# SIDEBAR CONFIDENCE
+# ============================================================
+
+st.sidebar.divider()
+
+st.sidebar.markdown(
+    "### Detection Settings"
+)
+
+confidence = st.sidebar.slider(
     "Detection confidence",
     0.10,
     0.90,
     0.25,
-    0.05,
+    0.05
 )
-st.session_state.conf = conf
+
+st.session_state.conf = confidence
+
+
+# ============================================================
+# SIDEBAR SYSTEM
+# ============================================================
 
 st.sidebar.divider()
-st.sidebar.markdown("### 🖥️ System")
-sys_col1, sys_col2 = st.sidebar.columns(2)
-sys_col1.metric("Inference", device_label)
-sys_col2.metric("Classes", "17")
-st.sidebar.caption("**Model:** VanDrishti YOLO")
 
-st.sidebar.divider()
-st.sidebar.markdown("### 🧭 Current Pipeline")
+st.sidebar.markdown(
+    "### 🖥️ System"
+)
 
-_pipeline_steps = [
-    ("📷", "Camera / Image Input", True),
-    ("🧹", "Pre-processing", True),
-    ("🎯", "YOLO Detection", True),
-    ("🐾", "Species Classification", True),
-    ("🧭", "ByteTrack Tracking", True),
-    ("🧬", "Re-ID / Identity Fusion", True),
-    ("🆔", "Persistent Animal ID", True),
-    ("📊", "Unique Population Count", True),
-]
-_pipeline_html = ""
-for icon, label, done in _pipeline_steps:
-    css_class = "pipeline-step-done" if done else "pipeline-step-pending"
-    check = "✓" if done else "…"
-    _pipeline_html += f'<span class="{css_class}">{icon} {label} {check}</span><br>'
+side_col1, side_col2 = (
+    st.sidebar.columns(2)
+)
 
-st.sidebar.markdown(f'<div class="pipeline">{_pipeline_html}</div>', unsafe_allow_html=True)
+side_col1.metric(
+    "Inference",
+    device_label
+)
+
+side_col2.metric(
+    "Classes",
+    TOTAL_CLASSES
+)
 
 st.sidebar.caption(
-    "Implemented now: detection + species classification + video tracking. "
-    "Cross-camera Re-ID and final identity fusion are under development."
+    "YOLO26n • ByteTrack • Baseline Re-ID"
 )
 
 
-# ---------- Dashboard ----------
-if mode == "Dashboard":
-    st.subheader("System Overview")
+# ============================================================
+# SIDEBAR PIPELINE
+# ============================================================
 
-    c1, c2, c3, c4 = st.columns(4)
-    c1.metric("Wildlife Classes", "17")
-    c2.metric("Training Images", "20,634")
-    c3.metric("Validation Images", "5,023")
-    c4.metric("Detector mAP50", "0.951")
+st.sidebar.divider()
+
+st.sidebar.markdown(
+    "### 🔗 System Pipeline"
+)
+
+pipeline_html = """
+<div class="pipeline">
+
+<div class="pipeline-done">
+📷 Camera / Image Input ✓
+</div>
+
+<div class="pipeline-done">
+🧹 NLM Image Preprocessing ✓
+</div>
+
+<div class="pipeline-done">
+🎯 YOLO26n Detection ✓
+</div>
+
+<div class="pipeline-done">
+🐾 Species Classification ✓
+</div>
+
+<div class="pipeline-done">
+🧭 ByteTrack Tracking ✓
+</div>
+
+<div class="pipeline-done">
+🧬 Baseline Re-ID ✓
+</div>
+
+<div class="pipeline-done">
+🧠 Identity Decision Logic ✓
+</div>
+
+<div class="pipeline-done">
+🆔 In-Session Identity Registry ✓
+</div>
+
+<div class="pipeline-done">
+📊 Unique Count Prototype ✓
+</div>
+
+<div class="pipeline-future">
+🧠 Learned Re-ID → Future
+</div>
+
+<div class="pipeline-future">
+🧩 Part-Aware Re-ID → Future
+</div>
+
+<div class="pipeline-future">
+⚙️ ANFIS Fusion → Future
+</div>
+
+</div>
+"""
+
+st.sidebar.markdown(
+    pipeline_html,
+    unsafe_allow_html=True
+)
+
+
+# ============================================================
+# DASHBOARD
+# ============================================================
+
+if mode == "Dashboard":
+
+    st.subheader(
+        "📊 VanDrishti Dashboard"
+    )
+
+    st.caption(
+        "AI-based wildlife detection, tracking, "
+        "identity evidence and unique-counting prototype."
+    )
+
+    # --------------------------------------------------------
+    # Dataset metrics
+    # --------------------------------------------------------
+
+    col1, col2, col3, col4 = (
+        st.columns(4)
+    )
+
+    col1.metric(
+        "Wildlife Classes",
+        TOTAL_CLASSES
+    )
+
+    col2.metric(
+        "Total Images",
+        f"{TOTAL_IMAGES:,}"
+    )
+
+    col3.metric(
+        "Training Images",
+        f"{TRAIN_IMAGES:,}"
+    )
+
+    col4.metric(
+        "Validation Images",
+        f"{VAL_IMAGES:,}"
+    )
 
     st.divider()
 
-    left, right = st.columns([1.35, 1])
+    # --------------------------------------------------------
+    # Architecture
+    # --------------------------------------------------------
+
+    left, right = (
+        st.columns(
+            [1.35, 1]
+        )
+    )
 
     with left:
-        st.markdown('<div class="vd-card">', unsafe_allow_html=True)
-        st.markdown("#### 🗺️ VanDrishti Architecture")
+
+        st.markdown(
+            "### 🏗️ VanDrishti Architecture"
+        )
+
         st.markdown(
             """
-            **1. Capture** → multiple wildlife camera observations
+**📷 Multiple Wildlife Cameras**
 
-            **2. Pre-process** → denoising, enhancement, normalization
+↓
 
-            **3. Detect** → trained YOLO wildlife detector
+**🧹 NLM Noise Filtering + Image Enhancement**
 
-            **4. Classify** → 17 wildlife categories
+↓
 
-            **5. Track** → ByteTrack maintains IDs within a sequence
+**🎯 YOLO26n Object Detection**
 
-            **6. Re-identify** → compare visual identity features across cameras
+↓
 
-            **7. Decision fusion** → combine visual similarity with context
+**🐾 Species Classification**
 
-            **8. De-duplicate** → repeated observations map to one animal ID
+↓
 
-            **9. Count** → category-wise unique population
-            """
+**🧭 ByteTrack Object Tracking**
+
+↓
+
+**🧬 Animal Re-ID**
+
+↓
+
+**🧠 Identity Decision Fusion**
+
+↓
+
+**🆔 Unique Animal Identity**
+
+↓
+
+**📊 Category-wise Unique Population Count**
+
+↓
+
+**🖥️ Monitoring Dashboard**
+"""
         )
-        st.markdown('</div>', unsafe_allow_html=True)
 
     with right:
-        st.markdown("#### 📌 Implementation Status")
 
-        status = [
-            ("Dataset preparation", "DONE"),
-            ("Custom YOLO detector", "DONE"),
-            ("Species classification", "DONE"),
-            ("Video tracking", "DONE"),
-            ("Multi-camera workflow", "PROTOTYPE"),
-            ("Cross-camera Re-ID", "NEXT"),
-            ("Identity fusion / ANFIS", "NEXT"),
-            ("Persistent unique counting", "NEXT"),
+        st.markdown(
+            "### 📌 Implementation Status"
+        )
+
+        implementation = [
+            ("Dataset Preparation", "DONE"),
+            ("VOC → YOLO Conversion", "DONE"),
+            ("Train / Validation Split", "DONE"),
+            ("NLM Preprocessing", "DONE"),
+            ("YOLO26n Detector", "DONE"),
+            ("ByteTrack Tracking", "DONE"),
+            ("Baseline Re-ID", "DONE"),
+            ("Identity Evidence", "DONE"),
+            ("Identity Registry", "PROTOTYPE"),
+            ("Unique Count Demo", "PROTOTYPE"),
+            ("Learned Re-ID", "FUTURE"),
+            ("Part-Aware Re-ID", "FUTURE"),
+            ("ANFIS Fusion", "FUTURE"),
         ]
 
-        badge_class = {
-            "DONE": "badge-done",
-            "PROTOTYPE": "badge-proto",
-            "NEXT": "badge-next",
-        }
+        for name, status in implementation:
 
-        for name, state in status:
-            st.markdown(
-                f"""
-                <div class="status-card">
-                    <span class="status-name">{name}</span>
-                    <span class="badge {badge_class[state]}">{state}</span>
-                </div>
-                """,
-                unsafe_allow_html=True,
+            c1, c2 = st.columns(
+                [3, 1]
             )
 
+            with c1:
+
+                st.write(
+                    f"**{name}**"
+                )
+
+            with c2:
+
+                if status == "DONE":
+
+                    st.success(
+                        "DONE"
+                    )
+
+                elif status == "PROTOTYPE":
+
+                    st.warning(
+                        "PROTO"
+                    )
+
+                else:
+
+                    st.info(
+                        "FUTURE"
+                    )
+
+    # --------------------------------------------------------
+    # YOLO metrics
+    # --------------------------------------------------------
+
+    st.divider()
+
+    st.markdown(
+        "### 📈 YOLO26n Validation Performance"
+    )
+
+    metric1, metric2, metric3, metric4 = (
+        st.columns(4)
+    )
+
+    metric1.metric(
+        "Precision",
+        f"{PRECISION}%"
+    )
+
+    metric2.metric(
+        "Recall",
+        f"{RECALL}%"
+    )
+
+    metric3.metric(
+        "mAP@50",
+        f"{MAP50}%"
+    )
+
+    metric4.metric(
+        "mAP@50-95",
+        f"{MAP50_95}%"
+    )
+
+    st.caption(
+        "Custom-trained YOLO26n model evaluated on the project validation split."
+    )
+
+    # --------------------------------------------------------
+    # Core objective
+    # --------------------------------------------------------
+
+    st.divider()
+
+    st.markdown(
+        "### 🎯 Core Objective"
+    )
+
     st.info(
-        "Demo message: VanDrishti is designed to move from counting "
-        "detections to counting unique animals across camera observations."
+        "Counting animals, not detections."
+    )
+
+    st.write(
+        "VanDrishti aims to distinguish repeated "
+        "observations of the same animal across "
+        "multiple cameras and generate more reliable "
+        "category-wise unique animal counts."
     )
 
 
-# ---------- Single image ----------
+# ============================================================
+# SINGLE IMAGE
+# ============================================================
+
 elif mode == "Single Image":
-    st.subheader("🔎 Wildlife Detection")
+
+    st.subheader(
+        "🔎 Wildlife Detection"
+    )
+
+    st.caption(
+        "NLM preprocessing → YOLO26n detection → "
+        "species classification."
+    )
+
     uploaded = st.file_uploader(
-        "Upload a wildlife image",
-        type=["jpg", "jpeg", "png"],
-        key="single_image",
+        "Upload wildlife image",
+        type=[
+            "jpg",
+            "jpeg",
+            "png"
+        ]
+    )
+
+    use_nlm = st.checkbox(
+        "Apply NLM preprocessing",
+        value=True
     )
 
     if uploaded:
-        image = Image.open(uploaded).convert("RGB")
-        image_np = np.array(image)
 
-        with st.spinner("Running VanDrishti detection..."):
-            annotated, detections = run_image(model, image_np)
+        image = Image.open(
+            uploaded
+        ).convert("RGB")
 
-        left, right = st.columns([2.2, 1])
-
-        with left:
-            st.image(
-                annotated,
-                caption="VanDrishti detection result",
-                use_container_width=True,
-            )
-
-        with right:
-            st.metric("Animals detected", len(detections))
-
-            counts = Counter(d["class"] for d in detections)
-
-            st.markdown('<div class="vd-card">', unsafe_allow_html=True)
-            st.markdown("##### Species")
-            if counts:
-                chips = "".join(
-                    f'<span class="species-chip">🐾 {species} · {count}</span>'
-                    for species, count in sorted(counts.items())
-                )
-                st.markdown(chips, unsafe_allow_html=True)
-            else:
-                st.caption("No species detected.")
-            st.markdown('</div>', unsafe_allow_html=True)
-
-            st.markdown('<div class="vd-card">', unsafe_allow_html=True)
-            st.markdown("##### Confidence")
-            for i, d in enumerate(detections, 1):
-                st.progress(
-                    d["confidence"],
-                    text=f"{i}. {d['class']} — {d['confidence']:.2f}",
-                )
-            st.markdown('</div>', unsafe_allow_html=True)
-
-            if detections:
-                q = crop_quality(image_np, detections[0]["bbox"])
-                st.markdown('<div class="vd-card">', unsafe_allow_html=True)
-                st.markdown("##### Identity Evidence Gate")
-                gate_class = "evidence-pass" if q["label"] == "SUFFICIENT EVIDENCE" else "evidence-fail"
-                st.metric("Evidence score", f"{q['score']:.2f}")
-                st.markdown(f'<span class="{gate_class}">{q["label"]}</span>', unsafe_allow_html=True)
-                st.markdown('</div>', unsafe_allow_html=True)
-
-        st.info(
-            "Detection and species classification are implemented. "
-            "The evidence gate is only a quality check for a future "
-            "identity module; it does not claim cross-camera Re-ID."
+        image_rgb = np.array(
+            image
         )
 
+        with st.spinner(
+            "Running wildlife detection..."
+        ):
 
-# ---------- Video ----------
-elif mode == "Video Tracking":
-    st.subheader("🎥 Wildlife Tracking")
-    uploaded = st.file_uploader(
-        "Upload a short wildlife video",
-        type=["mp4", "avi", "mov"],
-        key="video",
-    )
-    st.caption("For the jury demo, use a short 5–20 second clip.")
+            (
+                annotated,
+                processed,
+                detections
+            ) = run_detection(
+                model,
+                image_rgb,
+                use_nlm
+            )
 
-    if uploaded and st.button(
-        "▶ Run Detection + ByteTrack",
-        type="primary",
-    ):
-        with st.spinner("Processing video..."):
-            try:
-                out_path, frames, tracks = process_video(
-                    model,
-                    uploaded.getvalue(),
+        result_col, info_col = (
+            st.columns(
+                [2.1, 1]
+            )
+        )
+
+        with result_col:
+
+            st.markdown(
+                "### 🎯 Detection Result"
+            )
+
+            st.image(
+                annotated,
+                use_container_width=True
+            )
+
+        with info_col:
+
+            st.metric(
+                "Animals Detected",
+                len(detections)
+            )
+
+            counts = Counter(
+                d["class"]
+                for d in detections
+            )
+
+            st.markdown(
+                "### 🐾 Species"
+            )
+
+            for species, count in sorted(
+                counts.items()
+            ):
+
+                st.write(
+                    f"**{species}** — {count}"
                 )
 
-                with open(out_path, "rb") as f:
-                    video_data = f.read()
+            st.markdown(
+                "### 🎯 Confidence"
+            )
 
-                st.success(f"Processed {frames} frames.")
-                st.video(video_data)
+            for index, detection in enumerate(
+                detections,
+                start=1
+            ):
 
-                species_counts = Counter(tracks.values())
-
-                c1, c2, c3 = st.columns(3)
-                c1.metric("Track IDs observed", len(tracks))
-                c2.metric("Frames processed", frames)
-                c3.metric("Inference device", device_label)
-
-                st.markdown('<div class="vd-card">', unsafe_allow_html=True)
-                st.markdown("##### Tracked categories")
-                if species_counts:
-                    chips = "".join(
-                        f'<span class="species-chip">🐾 {species} · {count} track(s)</span>'
-                        for species, count in sorted(species_counts.items())
+                st.progress(
+                    detection["confidence"],
+                    text=(
+                        f"{index}. "
+                        f"{detection['class']} "
+                        f"— "
+                        f"{detection['confidence']:.2f}"
                     )
-                    st.markdown(chips, unsafe_allow_html=True)
-                else:
-                    st.caption("No tracks recorded.")
-                st.markdown('</div>', unsafe_allow_html=True)
-
-                st.warning(
-                    "Track IDs are temporary IDs within this video. "
-                    "They are not persistent cross-camera animal IDs."
                 )
 
-                os.unlink(out_path)
+        st.divider()
 
-            except Exception as e:
-                st.error(f"Video processing failed: {e}")
+        st.markdown(
+            "### 🧹 Preprocessing"
+        )
+
+        p1, p2 = st.columns(2)
+
+        with p1:
+
+            st.image(
+                image_rgb,
+                caption="Original",
+                use_container_width=True
+            )
+
+        with p2:
+
+            st.image(
+                processed,
+                caption="NLM Preprocessed",
+                use_container_width=True
+            )
 
 
-# ---------- Multi-camera ----------
-elif mode == "Multi-Camera Preview":
-    st.subheader("📷 Multi-Camera Monitoring")
+# ============================================================
+# VIDEO TRACKING
+# ============================================================
+
+elif mode == "Video Tracking":
+
+    st.subheader(
+        "🎥 YOLO26n + ByteTrack"
+    )
+
     st.caption(
-        "Upload observations from multiple cameras to demonstrate the "
-        "multi-camera acquisition and detection layer."
+        "Detect and track wildlife across video frames."
+    )
+
+    uploaded_video = st.file_uploader(
+        "Upload wildlife video",
+        type=[
+            "mp4",
+            "avi",
+            "mov"
+        ]
+    )
+
+    use_nlm_video = st.checkbox(
+        "Apply NLM preprocessing to frames",
+        value=False
+    )
+
+    if uploaded_video:
+
+        if st.button(
+            "▶ Start Tracking",
+            type="primary"
+        ):
+
+            with st.spinner(
+                "Running YOLO26n + ByteTrack..."
+            ):
+
+                try:
+
+                    (
+                        output_path,
+                        frame_count,
+                        tracks
+                    ) = process_video(
+                        model,
+                        uploaded_video.getvalue(),
+                        use_nlm_video
+                    )
+
+                    with open(
+                        output_path,
+                        "rb"
+                    ) as video_file:
+
+                        video_data = (
+                            video_file.read()
+                        )
+
+                    st.success(
+                        f"Processed {frame_count} frames."
+                    )
+
+                    st.video(
+                        video_data
+                    )
+
+                    st.divider()
+
+                    m1, m2, m3 = (
+                        st.columns(3)
+                    )
+
+                    m1.metric(
+                        "Frames",
+                        frame_count
+                    )
+
+                    m2.metric(
+                        "Track IDs",
+                        len(tracks)
+                    )
+
+                    m3.metric(
+                        "Device",
+                        device_label
+                    )
+
+                    species = Counter(
+                        tracks.values()
+                    )
+
+                    st.markdown(
+                        "### 🐾 Tracked Species"
+                    )
+
+                    for name, count in sorted(
+                        species.items()
+                    ):
+
+                        st.write(
+                            f"**{name}** — "
+                            f"{count} track(s)"
+                        )
+
+                    st.warning(
+                        "ByteTrack IDs are temporary "
+                        "video-level tracking identities. "
+                        "Cross-camera identity requires the Re-ID layer."
+                    )
+
+                    if os.path.exists(
+                        output_path
+                    ):
+
+                        os.unlink(
+                            output_path
+                        )
+
+                except Exception as error:
+
+                    st.error(
+                        f"Tracking failed:\n{error}"
+                    )
+
+
+# ============================================================
+# MULTI-CAMERA PREVIEW
+# ============================================================
+
+elif mode == "Multi-Camera Preview":
+
+    st.subheader(
+        "📷 Multi-Camera Observation"
+    )
+
+    st.caption(
+        "Simulate observations arriving from multiple "
+        "wildlife surveillance cameras."
     )
 
     files = st.file_uploader(
         "Upload up to 6 camera images",
-        type=["jpg", "jpeg", "png"],
-        accept_multiple_files=True,
-        key="multi",
+        type=[
+            "jpg",
+            "jpeg",
+            "png"
+        ],
+        accept_multiple_files=True
+    )
+
+    use_nlm_multi = st.checkbox(
+        "Apply NLM preprocessing",
+        value=True
     )
 
     if files:
+
         files = files[:6]
-        cols = st.columns(3)
-        all_counts = Counter()
+
+        columns = st.columns(3)
+
         total_detections = 0
 
-        for idx, uploaded in enumerate(files):
-            image = Image.open(uploaded).convert("RGB")
-            image_np = np.array(image)
+        species_counts = Counter()
 
-            with st.spinner(f"Analyzing Camera {idx + 1}..."):
-                annotated, detections = run_image(
+        for index, uploaded in enumerate(
+            files
+        ):
+
+            image = Image.open(
+                uploaded
+            ).convert("RGB")
+
+            image_rgb = np.array(
+                image
+            )
+
+            with st.spinner(
+                f"Processing Camera {index + 1}..."
+            ):
+
+                (
+                    annotated,
+                    _,
+                    detections
+                ) = run_detection(
                     model,
-                    image_np,
+                    image_rgb,
+                    use_nlm_multi
                 )
 
-            with cols[idx % 3]:
-                st.markdown('<div class="vd-card">', unsafe_allow_html=True)
-                st.markdown(f"##### 📹 Camera {idx + 1}")
-                st.image(annotated, use_container_width=True)
+            total_detections += len(
+                detections
+            )
+
+            for detection in detections:
+
+                species_counts[
+                    detection["class"]
+                ] += 1
+
+            with columns[
+                index % 3
+            ]:
+
+                st.markdown(
+                    f"### 📹 Camera {index + 1}"
+                )
+
+                st.image(
+                    annotated,
+                    use_container_width=True
+                )
+
                 st.write(
-                    f"Detections: **{len(detections)}**"
+                    f"Detections: "
+                    f"**{len(detections)}**"
                 )
-
-                for d in detections:
-                    all_counts[d["class"]] += 1
-
-                if detections:
-                    best = max(
-                        detections,
-                        key=lambda x: x["confidence"],
-                    )
-                    st.caption(
-                        f"Top observation: {best['class']} "
-                        f"({best['confidence']:.2f})"
-                    )
-                st.markdown('</div>', unsafe_allow_html=True)
-
-            total_detections += len(detections)
 
         st.divider()
 
-        c1, c2, c3 = st.columns(3)
-        c1.metric("Cameras", len(files))
-        c2.metric("Total detections", total_detections)
-        c3.metric("Unique count", "Pending Re-ID")
+        m1, m2, m3 = (
+            st.columns(3)
+        )
 
-        st.markdown('<div class="vd-card">', unsafe_allow_html=True)
-        st.markdown("##### Observation Summary")
-        if all_counts:
-            chips = "".join(
-                f'<span class="species-chip">🐾 {species} · {count}</span>'
-                for species, count in sorted(all_counts.items())
+        m1.metric(
+            "Cameras",
+            len(files)
+        )
+
+        m2.metric(
+            "Total Detections",
+            total_detections
+        )
+
+        m3.metric(
+            "Unique Animals",
+            "Re-ID Required"
+        )
+
+        st.markdown(
+            "### 📊 Combined Observations"
+        )
+
+        for species, count in sorted(
+            species_counts.items()
+        ):
+
+            st.write(
+                f"**{species}** — {count}"
             )
-            st.markdown(chips, unsafe_allow_html=True)
-        else:
-            st.caption("No detections across uploaded cameras.")
-        st.markdown('</div>', unsafe_allow_html=True)
 
         st.info(
-            "Important: adding detections from different cameras can "
-            "double-count the same animal. The Re-ID + identity-fusion "
-            "layer is designed to convert repeated observations into "
-            "persistent animal identities."
+            "Multiple cameras may observe the same "
+            "individual. The Re-ID layer is used to "
+            "determine whether observations belong to "
+            "the same animal."
         )
 
 
-# ---------- Identity evidence ----------
+# ============================================================
+# IDENTITY EVIDENCE
+# ============================================================
+
 elif mode == "Identity Evidence":
-    st.subheader("🧬 Identity Evidence Prototype")
+
+    st.subheader(
+        "🧠 Identity Evidence"
+    )
+
     st.caption(
-        "This screen demonstrates the design response to partial/poor "
-        "observations. It does not claim a completed Re-ID model."
+        "Evaluate whether two wildlife observations "
+        "contain sufficient visual evidence for identity comparison."
     )
 
-    uploaded = st.file_uploader(
-        "Upload an observation image",
-        type=["jpg", "jpeg", "png"],
-        key="identity_image",
+    uploaded_files = st.file_uploader(
+        "Upload two wildlife images",
+        type=[
+            "jpg",
+            "jpeg",
+            "png"
+        ],
+        accept_multiple_files=True
     )
 
-    if uploaded:
-        image = Image.open(uploaded).convert("RGB")
-        image_np = np.array(image)
+    if uploaded_files:
 
-        with st.spinner("Detecting animal and evaluating visual evidence..."):
-            annotated, detections = run_image(model, image_np)
-
-        st.image(
-            annotated,
-            caption="Observation used for identity-evidence assessment",
-            use_container_width=True,
-        )
-
-        if not detections:
-            st.error("No animal detected — identity evidence unavailable.")
-        else:
-            rows = []
-            for i, d in enumerate(detections, 1):
-                q = crop_quality(image_np, d["bbox"])
-                rows.append(
-                    (
-                        i,
-                        d["class"],
-                        f"{d['confidence']:.2f}",
-                        f"{q['score']:.2f}",
-                        q["label"],
-                    )
-                )
-
-            st.markdown('<div class="vd-card">', unsafe_allow_html=True)
-            st.markdown("##### Evidence assessment")
-            st.table(
-                {
-                    "Observation": [r[0] for r in rows],
-                    "Species": [r[1] for r in rows],
-                    "Detection confidence": [r[2] for r in rows],
-                    "Evidence score": [r[3] for r in rows],
-                    "Identity gate": [r[4] for r in rows],
-                }
-            )
-            st.markdown('</div>', unsafe_allow_html=True)
+        if len(uploaded_files) != 2:
 
             st.warning(
-                "If only a small or heavily blurred body part is visible, "
-                "VanDrishti should not force a SAME/NEW identity decision. "
-                "The intended identity layer will use an explicit "
-                "INSUFFICIENT EVIDENCE state and wait for a better observation."
+                "Please upload exactly two images."
             )
 
+        else:
+
+            images = []
+
+            for file in uploaded_files:
+
+                image = Image.open(
+                    file
+                ).convert("RGB")
+
+                images.append(
+                    np.array(image)
+                )
+
+            detections = []
+
+            for image in images:
+
+                _, _, result = run_detection(
+                    model,
+                    image,
+                    use_nlm=True
+                )
+
+                detections.append(
+                    result
+                )
+
+            c1, c2 = st.columns(2)
+
+            for index in range(2):
+
+                with (
+                    c1
+                    if index == 0
+                    else c2
+                ):
+
+                    st.markdown(
+                        f"### Observation {index + 1}"
+                    )
+
+                    st.image(
+                        images[index],
+                        use_container_width=True
+                    )
+
+                    if detections[index]:
+
+                        for detection in detections[index]:
+
+                            quality = crop_quality(
+                                images[index],
+                                detection["bbox"]
+                            )
+
+                            st.write(
+                                f"Species: "
+                                f"**{detection['class']}**"
+                            )
+
+                            st.write(
+                                f"Detection confidence: "
+                                f"**{detection['confidence']:.2f}**"
+                            )
+
+                            st.write(
+                                f"Evidence quality: "
+                                f"**{quality['score']:.2f}**"
+                            )
+
+                            if quality["score"] >= QUALITY_THRESHOLD:
+
+                                st.success(
+                                    "Sufficient visual evidence"
+                                )
+
+                            else:
+
+                                st.warning(
+                                    "Insufficient visual evidence"
+                                )
+
+                    else:
+
+                        st.warning(
+                            "No animal detected."
+                        )
+
+
+# ============================================================
+# RE-ID COMPARISON
+# ============================================================
 
 elif mode == "Re-ID Comparison":
-    st.subheader("🧬 Image-to-Image Re-ID Baseline")
-    st.caption(
-        "VanDrishti baseline identity experiment: compare two animal "
-        "observations using a transparent global + local appearance baseline. "
-        "This is a real baseline, not a claimed final Re-ID neural model."
+
+    st.subheader(
+        "🧬 Wildlife Re-ID Comparison"
     )
 
-    col_a, col_b = st.columns(2)
-    with col_a:
-        file_a = st.file_uploader(
-            "Observation A",
-            type=["jpg", "jpeg", "png"],
-            key="reid_a",
-        )
-    with col_b:
-        file_b = st.file_uploader(
-            "Observation B",
-            type=["jpg", "jpeg", "png"],
-            key="reid_b",
-        )
+    st.caption(
+        "Baseline appearance + local pattern similarity."
+    )
 
-    if file_a and file_b:
-        img_a = np.array(Image.open(file_a).convert("RGB"))
-        img_b = np.array(Image.open(file_b).convert("RGB"))
+    uploaded_files = st.file_uploader(
+        "Upload two observations",
+        type=[
+            "jpg",
+            "jpeg",
+            "png"
+        ],
+        accept_multiple_files=True
+    )
 
-        with st.spinner("Detecting animals and comparing appearance..."):
-            _, det_a = run_image(model, img_a)
-            _, det_b = run_image(model, img_b)
+    if uploaded_files:
 
-        if not det_a or not det_b:
-            st.error(
-                "Both observations must contain a detected animal before "
-                "the identity baseline can compare them."
+        if len(uploaded_files) != 2:
+
+            st.warning(
+                "Upload exactly two images."
             )
+
         else:
-            # Use the highest-confidence detection in each observation.
-            best_a = max(det_a, key=lambda d: d["confidence"])
-            best_b = max(det_b, key=lambda d: d["confidence"])
 
-            crop_a = crop_from_detection(img_a, best_a)
-            crop_b = crop_from_detection(img_b, best_b)
+            images = []
 
-            qa = crop_quality(img_a, best_a["bbox"])
-            qb = crop_quality(img_b, best_b["bbox"])
+            for file in uploaded_files:
 
-            emb_a = appearance_embedding(crop_a)
-            emb_b = appearance_embedding(crop_b)
-            similarity, global_similarity, local_similarity = (
-                combined_identity_similarity(crop_a, crop_b)
+                image = Image.open(
+                    file
+                ).convert("RGB")
+
+                images.append(
+                    np.array(image)
+                )
+
+            detections = []
+
+            for image in images:
+
+                _, _, result = run_detection(
+                    model,
+                    image,
+                    use_nlm=True
+                )
+
+                detections.append(
+                    result
+                )
+
+            if (
+                not detections[0]
+                or not detections[1]
+            ):
+
+                st.error(
+                    "An animal must be detected in both images."
+                )
+
+            else:
+
+                detection_a = max(
+                    detections[0],
+                    key=lambda x: x["confidence"]
+                )
+
+                detection_b = max(
+                    detections[1],
+                    key=lambda x: x["confidence"]
+                )
+
+                crop_a = crop_from_bbox(
+                    images[0],
+                    detection_a["bbox"]
+                )
+
+                crop_b = crop_from_bbox(
+                    images[1],
+                    detection_b["bbox"]
+                )
+
+                quality_a = crop_quality(
+                    images[0],
+                    detection_a["bbox"]
+                )
+
+                quality_b = crop_quality(
+                    images[1],
+                    detection_b["bbox"]
+                )
+
+                (
+                    combined,
+                    global_score,
+                    local_score
+                ) = combined_identity_similarity(
+                    crop_a,
+                    crop_b
+                )
+
+                decision = reid_decision(
+                    combined,
+                    quality_a,
+                    quality_b,
+                    detection_a["class"],
+                    detection_b["class"]
+                )
+
+                c1, c2 = st.columns(2)
+
+                with c1:
+
+                    st.image(
+                        images[0],
+                        caption="Observation A",
+                        use_container_width=True
+                    )
+
+                    st.write(
+                        f"Species: **{detection_a['class']}**"
+                    )
+
+                    st.write(
+                        f"Quality: **{quality_a['score']:.2f}**"
+                    )
+
+                with c2:
+
+                    st.image(
+                        images[1],
+                        caption="Observation B",
+                        use_container_width=True
+                    )
+
+                    st.write(
+                        f"Species: **{detection_b['class']}**"
+                    )
+
+                    st.write(
+                        f"Quality: **{quality_b['score']:.2f}**"
+                    )
+
+                st.divider()
+
+                st.markdown(
+                    "### 📊 Similarity Analysis"
+                )
+
+                m1, m2, m3 = (
+                    st.columns(3)
+                )
+
+                m1.metric(
+                    "Global Appearance",
+                    f"{global_score:.3f}"
+                )
+
+                m2.metric(
+                    "Local Pattern",
+                    f"{local_score:.3f}"
+                )
+
+                m3.metric(
+                    "Combined Similarity",
+                    f"{combined:.3f}"
+                )
+
+                st.markdown(
+                    "### 🧠 Identity Decision"
+                )
+
+                if decision == "LIKELY SAME":
+
+                    st.success(
+                        "LIKELY SAME INDIVIDUAL"
+                    )
+
+                elif decision == "LIKELY DIFFERENT":
+
+                    st.info(
+                        "LIKELY DIFFERENT INDIVIDUALS"
+                    )
+
+                elif decision == "INSUFFICIENT EVIDENCE":
+
+                    st.error(
+                        "INSUFFICIENT EVIDENCE"
+                    )
+
+                else:
+
+                    st.warning(
+                        "UNCERTAIN"
+                    )
+
+                st.caption(
+                    "Baseline thresholds: "
+                    f"SAME ≥ {REID_SAME_THRESHOLD:.2f}, "
+                    f"DIFFERENT ≤ {REID_DIFFERENT_THRESHOLD:.2f}. "
+                    "This is an experimental handcrafted baseline, "
+                    "not the final learned Re-ID model."
+                )
+
+
+# ============================================================
+# UNIQUE COUNT DEMO
+# ============================================================
+
+elif mode == "Unique Count Demo":
+
+    st.subheader(
+        "🆔 Unique Animal Count Demo"
+    )
+
+    st.caption(
+        "Prototype for combining multiple camera observations "
+        "into an in-session identity registry."
+    )
+
+    if "identity_registry" not in st.session_state:
+
+        st.session_state.identity_registry = []
+
+    if "next_identity_id" not in st.session_state:
+
+        st.session_state.next_identity_id = 1
+
+    files = st.file_uploader(
+        "Upload multiple wildlife observations",
+        type=[
+            "jpg",
+            "jpeg",
+            "png"
+        ],
+        accept_multiple_files=True
+    )
+
+    if files:
+
+        observations = []
+
+        for file in files:
+
+            image = Image.open(
+                file
+            ).convert("RGB")
+
+            image_rgb = np.array(
+                image
             )
 
-            decision = reid_decision(
-                similarity,
-                qa,
-                qb,
-                best_a["class"],
-                best_b["class"],
+            _, _, detections = run_detection(
+                model,
+                image_rgb,
+                use_nlm=True
             )
 
-            ca, cb = st.columns(2)
-            with ca:
-                st.image(crop_a, caption=f"A: {best_a['class']} ({best_a['confidence']:.2f})")
-                gate_class_a = "evidence-pass" if qa["label"] == "SUFFICIENT EVIDENCE" else "evidence-fail"
-                st.markdown(f'Evidence: <span class="{gate_class_a}">{qa["label"]}</span>', unsafe_allow_html=True)
-            with cb:
-                st.image(crop_b, caption=f"B: {best_b['class']} ({best_b['confidence']:.2f})")
-                gate_class_b = "evidence-pass" if qb["label"] == "SUFFICIENT EVIDENCE" else "evidence-fail"
-                st.markdown(f'Evidence: <span class="{gate_class_b}">{qb["label"]}</span>', unsafe_allow_html=True)
+            if not detections:
+
+                continue
+
+            for detection in detections:
+
+                crop = crop_from_bbox(
+                    image_rgb,
+                    detection["bbox"]
+                )
+
+                quality = crop_quality(
+                    image_rgb,
+                    detection["bbox"]
+                )
+
+                embedding = appearance_embedding(
+                    crop
+                )
+
+                observations.append(
+                    {
+                        "image": image_rgb,
+                        "species": detection["class"],
+                        "confidence": detection["confidence"],
+                        "quality": quality,
+                        "embedding": embedding,
+                        "crop": crop,
+                    }
+                )
+
+        st.metric(
+            "Animal Observations",
+            len(observations)
+        )
+
+        if st.button(
+            "Run Identity Assignment",
+            type="primary"
+        ):
+
+            # ------------------------------------------------
+            # Reset registry for this run
+            # ------------------------------------------------
+
+            st.session_state.identity_registry = []
+
+            st.session_state.next_identity_id = 1
+
+            assignments = []
+
+            # ------------------------------------------------
+            # Process observations
+            # ------------------------------------------------
+
+            for observation in observations:
+
+                best_identity = None
+
+                best_similarity = -1
+
+                for identity in (
+                    st.session_state.identity_registry
+                ):
+
+                    if identity["species"] != (
+                        observation["species"]
+                    ):
+
+                        continue
+
+                    similarity = cosine_similarity(
+                        observation["embedding"],
+                        identity["embedding"]
+                    )
+
+                    if similarity > best_similarity:
+
+                        best_similarity = similarity
+
+                        best_identity = identity
+
+                # ------------------------------------------------
+                # Match existing identity
+                # ------------------------------------------------
+
+                if (
+                    best_identity is not None
+                    and best_similarity >= REID_SAME_THRESHOLD
+                    and observation["quality"]["score"]
+                    >= QUALITY_THRESHOLD
+                ):
+
+                    best_identity["observations"] += 1
+
+                    assignments.append(
+                        {
+                            "species": observation["species"],
+                            "identity": best_identity["id"],
+                            "similarity": best_similarity,
+                            "decision": "SAME",
+                        }
+                    )
+
+                # ------------------------------------------------
+                # Create new identity
+                # ------------------------------------------------
+
+                else:
+
+                    identity_id = (
+                        f"ANIMAL_"
+                        f"{st.session_state.next_identity_id:03d}"
+                    )
+
+                    st.session_state.next_identity_id += 1
+
+                    new_identity = {
+                        "id": identity_id,
+                        "species": observation["species"],
+                        "embedding": observation["embedding"],
+                        "observations": 1,
+                    }
+
+                    st.session_state.identity_registry.append(
+                        new_identity
+                    )
+
+                    assignments.append(
+                        {
+                            "species": observation["species"],
+                            "identity": identity_id,
+                            "similarity": best_similarity
+                            if best_identity is not None
+                            else 0.0,
+                            "decision": "NEW",
+                        }
+                    )
+
+            # ------------------------------------------------
+            # Results
+            # ------------------------------------------------
 
             st.divider()
 
-            m1, m2, m3 = st.columns(3)
-            m1.metric("Combined similarity", f"{similarity:.3f}")
-            m2.metric("Local pattern similarity", f"{local_similarity:.3f}")
-            with m3:
-                st.markdown(
-                    f'<div class="small-note">Identity decision</div>'
-                    f'<span class="decision-chip {decision_css_class(decision)}">{decision}</span>',
-                    unsafe_allow_html=True,
-                )
-
-            if best_a["class"] != best_b["class"]:
-                st.warning(
-                    "Species differ, so these observations cannot represent "
-                    "the same animal. Species mismatch overrides appearance similarity."
-                )
-            elif decision == "LIKELY SAME":
-                st.success(
-                    "Baseline result: the two observations are visually "
-                    "similar enough to be candidates for the same animal."
-                )
-            elif decision == "LIKELY DIFFERENT":
-                st.info(
-                    "Baseline result: the two observations are visually "
-                    "different enough to be candidates for different animals."
-                )
-            elif decision == "INSUFFICIENT EVIDENCE":
-                st.warning(
-                    "Do not force an identity decision. A future part-aware "
-                    "Re-ID model should wait for a more informative observation."
-                )
-            else:
-                st.warning(
-                    "Similarity falls in the uncertain band. Keep the "
-                    "observations separate until additional visual or "
-                    "temporal/spatial evidence is available."
-                )
-
-            st.markdown("### Decision logic")
-            st.code(
-                "Appearance features + species + evidence quality\n"
-                "                     ↓\n"
-                "             Similarity comparison\n"
-                "                     ↓\n"
-                "      SAME / DIFFERENT / UNCERTAIN\n"
-                "                     ↓\n"
-                "       insufficient evidence → wait",
-                language="text",
+            st.markdown(
+                "### 📊 Identity Assignment"
             )
 
-            st.info(
-                "Research status: this appearance descriptor is our "
-                "baseline experiment. The next learned component is a "
-                "part-aware metric-learning Re-ID model trained on "
-                "sequence-derived positive/negative pairs."
+            for index, assignment in enumerate(
+                assignments,
+                start=1
+            ):
+
+                if assignment["decision"] == "SAME":
+
+                    st.success(
+                        f"Observation {index}: "
+                        f"{assignment['species']} → "
+                        f"{assignment['identity']} "
+                        f"(similarity "
+                        f"{assignment['similarity']:.3f})"
+                    )
+
+                else:
+
+                    st.info(
+                        f"Observation {index}: "
+                        f"{assignment['species']} → "
+                        f"{assignment['identity']} "
+                        f"(NEW)"
+                    )
+
+            # ------------------------------------------------
+            # Unique count
+            # ------------------------------------------------
+
+            st.divider()
+
+            st.markdown(
+                "### 🐾 Unique Population Estimate"
             )
 
-
-
-elif mode == "Unique Count Demo":
-    st.subheader("🆔 Unique Animal Counting")
-    st.caption(
-        "End-to-end prototype: each uploaded observation is detected, "
-        "converted to an appearance descriptor, compared with the current "
-        "identity registry, and assigned a persistent in-session ID."
-    )
-
-    col1, col2 = st.columns([2, 1])
-    with col1:
-        files = st.file_uploader(
-            "Upload observations in camera/observation order",
-            type=["jpg", "jpeg", "png"],
-            accept_multiple_files=True,
-            key="registry_images",
-        )
-    with col2:
-        if st.button("🗑 Reset Identity Registry"):
-            st.session_state.identity_registry = {}
-            st.rerun()
-
-    st.info(
-        "Demo rule: same species + appearance similarity ≥ 0.88 → SAME; "
-        "0.68–0.88 → UNCERTAIN; lower → NEW. These are baseline prototype "
-        "thresholds, not final research thresholds."
-    )
-
-    if files:
-        registry = st.session_state.identity_registry
-        results = []
-
-        for idx, uploaded in enumerate(files[:12], start=1):
-            image = Image.open(uploaded).convert("RGB")
-            image_np = np.array(image)
-
-            with st.spinner(f"Analyzing observation {idx}..."):
-                annotated, detections = run_image(model, image_np)
-
-            if not detections:
-                results.append({
-                    "file": uploaded.name,
-                    "species": "—",
-                    "animal_id": "—",
-                    "decision": "NO DETECTION",
-                    "similarity": None,
-                    "image": annotated,
-                })
-                continue
-
-            # For the demo, use the highest-confidence animal in each image.
-            det = max(detections, key=lambda d: d["confidence"])
-            crop = crop_from_detection(image_np, det)
-            quality = crop_quality(image_np, det["bbox"])
-            embedding = appearance_embedding(crop)
-
-            animal_id, decision, similarity = assign_registry_id(
-                registry,
-                det["class"],
-                embedding,
-                quality["score"],
-                crop_rgb=crop,
+            unique_counts = Counter(
+                identity["species"]
+                for identity
+                in st.session_state.identity_registry
             )
 
-            results.append({
-                "file": uploaded.name,
-                "species": det["class"],
-                "animal_id": animal_id or "PENDING",
-                "decision": decision,
-                "similarity": similarity,
-                "image": annotated,
-                "confidence": det["confidence"],
-            })
+            total_unique = len(
+                st.session_state.identity_registry
+            )
 
-        st.divider()
-        st.markdown("### Camera / Observation Results")
+            st.metric(
+                "Total Unique Individuals",
+                total_unique
+            )
 
-        cols = st.columns(3)
-        for i, r in enumerate(results):
-            with cols[i % 3]:
-                st.markdown('<div class="vd-card">', unsafe_allow_html=True)
-                st.markdown(f"**Observation {i+1}**")
-                st.image(r["image"], use_container_width=True)
-                st.write(f"File: `{r['file']}`")
-                st.write(f"Species: **{r['species']}**")
-                st.write(f"Animal ID: **{r['animal_id']}**")
-                st.markdown(
-                    f'<span class="decision-chip {decision_css_class(r["decision"])}">{r["decision"]}</span>',
-                    unsafe_allow_html=True,
+            for species, count in sorted(
+                unique_counts.items()
+            ):
+
+                st.write(
+                    f"**{species}** — {count}"
                 )
-                if r["similarity"] is not None:
-                    st.write(f"Best similarity: **{r['similarity']:.3f}**")
-                if "confidence" in r:
-                    st.caption(f"Detection confidence: {r['confidence']:.2f}")
-                st.markdown('</div>', unsafe_allow_html=True)
 
-        st.divider()
-
-        counts = registry_summary(registry)
-        total_unique = len(registry)
-
-        m1, m2, m3 = st.columns(3)
-        m1.metric("Unique animals", total_unique)
-        m2.metric("Observations processed", len(results))
-        m3.metric("Species represented", len(counts))
-
-        st.markdown("### 🆔 Identity Registry")
-        if registry:
-            table_rows = []
-            for animal_id, record in registry.items():
-                table_rows.append({
-                    "Animal ID": animal_id,
-                    "Species": record["species"],
-                    "Observations": record["observations"],
-                    "Best similarity": (
-                        f"{record['best_similarity']:.3f}"
-                        if record["best_similarity"] is not None
-                        else "—"
-                    ),
-                })
-            st.table(table_rows)
-
-            st.markdown('<div class="vd-card">', unsafe_allow_html=True)
-            st.markdown("##### 📊 Unique Population")
-            chips = "".join(
-                f'<span class="species-chip">🐾 {species} · {count} unique</span>'
-                for species, count in sorted(counts.items())
+            st.warning(
+                "This is an in-session prototype. "
+                "The final system will use a stronger learned "
+                "Re-ID model, identity fusion and persistent storage."
             )
-            st.markdown(chips, unsafe_allow_html=True)
-            st.markdown('</div>', unsafe_allow_html=True)
 
-        st.success(
-            "Core concept demonstrated: repeated observations that match "
-            "an existing identity do not increment the unique-animal count."
-        )
 
-        st.warning(
-            "Prototype limitation: this screen compares the best detection "
-            "per image and uses the current appearance baseline. The final "
-            "VanDrishti system will replace this with learned part-aware "
-            "Re-ID plus temporal/spatial/contextual fusion."
-        )
-
+# ============================================================
+# FOOTER
+# ============================================================
 
 st.divider()
-st.markdown(
-    '<div class="vd-footer">VanDrishti • SIH 2026 Prototype • '
-    'Detection + tracking implemented • '
-    'Cross-camera Re-ID and identity fusion under development</div>',
-    unsafe_allow_html=True,
+
+st.caption(
+    "VanDrishti • AI-Based Multi-Camera Wildlife Monitoring"
+)
+
+st.caption(
+    "Counting animals, not detections."
 )
